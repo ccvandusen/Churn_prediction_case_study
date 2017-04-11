@@ -67,7 +67,8 @@ def feature_engineer(full_df):
 
     # Dropping all extra columns not being used
     full_df.drop(full_df[['city', 'phone', 'avg_surge', 'iPhone', 'Winterfell',
-                          'last_trip_date', 'signup_date', 'avg_rating_by_driver']],
+                          'last_trip_date', 'signup_date',
+                          'avg_rating_by_driver', 'Astapor']],
                  axis=1, inplace=True)
     return full_df, y
 
