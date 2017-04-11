@@ -3,126 +3,85 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
-from sklearn.metrics import roc_curve, precision_recall_fscore_support, precision_score, recall_score
-import ipdb
+from sklearn.ensemble import RandomForestClassifier, \
+    GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.metrics import roc_curve, precision_recall_fscore_support,\
+    precision_score, recall_score
 import seaborn as sns
+import data_engineer as de
+
+'''
+
+This script has several functions that try different models on our
+train and test data, as well as functions to plot ROC curve, feature importance,
+and run a grid search on any of the fitted model objects. Data is cleaned/
+engineered by functions in the data_engineer script.
+
+'''
+
+# So seaborn makes matplotlib plots pretty
 sns.set()
 
 
-def import_Data(filepath):
+def log_reg(X_train, y_train, X_test):
     '''
-    INPUT: STRING of filepath to data file
-    OUTPUT: X and y data, including the engineered 'churn' column
-
-    ***dropped the last_trip_date and signup_date for now***
-    ***GOT RID OF ALL NA VALUES***
-    '''
-    fullData = pd.read_csv(filepath)
-    fullData['last_trip_date'] = pd.to_datetime(fullData['last_trip_date'])
-    fullData['signup_date'] = pd.to_datetime(fullData['signup_date'])
-    X = fullData
-    return X
-
-
-def feature_engineer(X):
-    '''
-    INPUT: pandas dataframe - X data (BEFORE SPLIT!!!!)
-    OUTPUT: pandas dataframe - X data with engineered binary feature columns
-    '''
-    # creating dependent churn variables
-    # called people churned if they hadn't used the service in the last month
-    condition = X['last_trip_date'] < '2014-06-01'
-    X['churn'] = 1
-    X.ix[~condition, 'churn'] = 0
-
-    # X['no_ratings'] = X['avg_rating_of_driver'].isnull()*1 # attempted
-    # feature left out
-
-    # creating a feature of people who only used the service once
-    used_once = []
-    for num in xrange(len(X)):
-        used_once.append(
-            ((X['last_trip_date'][num] - X['signup_date'][num]).days > 2) * 1)
-    X['used_once'] = pd.Series(used_once)
-
-    X.drop(X[['last_trip_date', 'signup_date']], axis=1, inplace=True)
-
-    # Filling missing values, check presentation for our
-    condition3 = X['avg_rating_of_driver'].isnull()
-    X.ix[condition3, 'avg_rating_of_driver'] = 0.5 * \
-        X['avg_rating_of_driver'].mean()
-
-    condition4 = X['avg_rating_by_driver'].isnull()
-    X.ix[condition4, 'avg_rating_by_driver'] = 0.5 * \
-        X['avg_rating_by_driver'].mean()
-
-    # I think this is pretty self expanatory, check git for our presentation
-    # on why we chose our features
-    X['total_distance'] = X['trips_in_first_30_days'] * X['avg_dist']
-
-    #X['compatability'] = X['avg_rating_of_driver']*X['avg_rating_by_driver']
-
-    # X.dropna(inplace=True)
-    # Creating dependent variable object and dropping it from independent
-    # variable df
-    y = X['churn']
-    X.drop('churn', axis=1, inplace=True)
-
-    # creating dummy variables
-    X['city'].unique()
-    df_city = pd.get_dummies(X['city'])
-    X['phone'].unique()
-    df_phone = pd.get_dummies(X['phone'])
-    X = pd.concat([X, df_city], axis=1)
-    X = pd.concat([X, df_phone], axis=1)
-
-    # Dropping all extra columns not being used
-    X.drop(X[['city', 'phone', 'avg_surge', 'iPhone', 'Winterfell']],
-           axis=1, inplace=True)
-    return X, y
-
-
-def log_Reg(X_train, y_train, X_test):
-    '''
-    INPUT: numpy arrays of X_train, y_train from train_test_split module
+    INPUT: pandas objects of X_train, y_train, X_test data created from
+           fxns in data_engineer script
     OUTPUT: fitted model object and probabilities created by model
     '''
     model = LogisticRegression().fit(X_train, y_train)
-    return model, model.predict_proba(X_test)
+    probabilities = model.predict_proba(X_test)
+    return model, probabilities
 
 
-def random_Forest(X_train, y_train, X_test):
+def random_forest(X_train, y_train, X_test):
     '''
-    INPUT: numpy arrays of X_train, y_train from train_test_split module
+    INPUT: pandas objects of X_train, y_train, X_test data created from
+           fxns in data_engineer script
     OUTPUT: fitted model object and probabilities created by model
     '''
     model = RandomForestClassifier(n_estimators=50).fit(X_train, y_train)
-    return model, model.predict_proba(X_test)
+    probabilities = model.predict_proba(X_test)
+    return model, probabilities
 
 
-def gradient_Boosting(X_train, y_train, X_test):
+def gradient_boosting(X_train, y_train, X_test):
+    '''
+    INPUT: pandas objects of X_train, y_train, X_test data created from
+           fxns in data_engineer script
+    OUTPUT: fitted model object and probabilities created by model
+    '''
+
+    # this model has specific parameters, unlike the other functions, because
+    # it was our final choice for prediction and the parameters were selected
+    # from running the grid search fxn below
     model = GradientBoostingClassifier(n_estimators=200, max_features=1.0,
-                                       learning_rate=0.1, max_depth=4, min_samples_leaf=17).fit(X_train, y_train)
-    return model, model.predict_proba(X_test)
+                                       learning_rate=0.1, max_depth=4,
+                                       min_samples_leaf=17).fit(X_train, y_train)
+
+    probabilities = model.predict_proba(X_test)  # predict_proba() give 2
+    # complementary probabilities
+
+    return model, probabilities
 
 
 def plot_ROC(probabilities, labels):
     '''
-    INPUT: Probabilities from any given model, numpy array of y_test data from
+    INPUT: probabilities from any given model, numpy array of y_test data from
     test_train_split
     OUTPUT: Plotted ROC curve
-
-    NOTE: uses sk_learn's roc_curve module to produce fpr and tpr
     '''
+
+    # Getting tpr and fpr to plot ROC curve from sk_learn
     fpr, tpr, thresholds = roc_curve(labels, probabilities[:, 1])
+
+    # Plotting ROC curve
     plt.plot(fpr, tpr)
     plt.xlabel("False Positive Rate (1 - Specificity)")
     plt.ylabel("True Positive Rate (Sensitivity, Recall)")
     plt.title("Rideshare Gradient Boost ROC plot")
     plt.plot(np.linspace(0, 1, 100), np.linspace(0, 1, 100), 'k-', zorder=0)
     plt.show()
-    return
 
 
 def plot_feature_importance(model, X):
@@ -150,25 +109,32 @@ def plot_feature_importance(model, X):
     plt.xticks(range(X.shape[1]), list(X), rotation='vertical')
     plt.xlim([-1, X.shape[1]])
     plt.show()
-    return
 
 
-def GridSearch(X, y):
+def grid_search(model):
     '''
-    Grid Search you can figure this one out, I believe in you
+    INPUT: sklearn object: fitted model to grid Search
+    OUTPUT: dict: contains the optimal parameters of the GridSearch
+            float: accuracy score of the model w/ optimal parameters
+    Implements a grid search
     '''
+    # Parameters used to gridsearch, these are the optimized one for our final
+    # Boosted model
     param_grid = {'n_estimators': [100, 200], 'learning_rate': [0.1, 0.05], 'max_depth': [
         1, 2, 4], 'min_samples_leaf': [9, 17], 'max_features': [1.0, 0.3]}
-    gsearch1 = GridSearchCV(GradientBoostingClassifier(), param_grid).fit(X, y)
+
+    # Gridsearch object
+    gsearch1 = GridSearchCV(model, param_grid)
+
     return gsearch1.best_params_, gsearch1.best_score_
 
 if __name__ == '__main__':
-    full = import_Data('data/churn_train.csv')
-    full2 = import_Data('data/churn_test.csv')
-    X, y = feature_engineer(full)
-    X2, y2 = feature_engineer(full2)
-    #X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=101)
-    model, probabilities = gradient_Boosting(X, y, X2)
-    print model.score(X2, y2), precision_score(y2, model.predict(X2)), recall_score(y2, model.predict(X2))
-    #plot_ROC(probabilities, y2.values)
-    plot_feature_importance(model, X)
+    train_filepath = '/Users/ChrisV/Documents/Galvanize/churn-prediction-case-study/data/churn_train.csv'
+    test_filepath = '/Users/ChrisV/Documents/Galvanize/churn-prediction-case-study/data/churn_test.csv'
+    train_df = de.import_data(train_filepath)
+    test_df = de.import_data(test_filepath)
+    X_train, y_train = feature_engineer(train_df)
+    X_test, y_test = feature_engineer(test_df)
+    model, probabilities = gradient_boosting(X_train, y_train, X_test)
+    plot_ROC(probabilities, y_test.values)
+    #plot_feature_importance(model, X)
