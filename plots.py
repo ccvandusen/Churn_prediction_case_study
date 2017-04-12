@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from sklearn.metrics import roc_curve
 import pandas as pd
 import numpy as np
 import data_engineer as de
