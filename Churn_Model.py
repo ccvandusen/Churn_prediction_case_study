@@ -1,13 +1,11 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import GridSearchCV, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, \
     GradientBoostingClassifier, AdaBoostClassifier
 from sklearn.metrics import roc_curve, precision_recall_fscore_support,\
     precision_score, recall_score
-import seaborn as sns
 import data_engineer as de
 
 '''
@@ -19,19 +17,16 @@ engineered by functions in the data_engineer script.
 
 '''
 
-# So seaborn makes matplotlib plots pretty
-sns.set()
-
 
 def log_reg(X_train, y_train, X_test):
     '''
     INPUT: pandas objects of X_train, y_train, X_test data created from
            fxns in data_engineer script
-    OUTPUT: fitted model object and probabilities created by model
+    OUTPUT: fitted model object
     '''
     model = LogisticRegression().fit(X_train, y_train)
     probabilities = model.predict_proba(X_test)
-    return model, probabilities
+    return model, probabilites
 
 
 def random_forest(X_train, y_train, X_test):
@@ -65,50 +60,25 @@ def gradient_boosting(X_train, y_train, X_test):
     return model, probabilities
 
 
-def plot_ROC(probabilities, labels):
+def cross_val(model, X, y, folds=5, n_jobs=-1):
     '''
-    INPUT: probabilities from any given model, numpy array of y_test data from
-    test_train_split
-    OUTPUT: Plotted ROC curve
+    INPUT: sk_learn object - fitted model to cross validate over
+           panads df - train data of independent variables
+           pandas df - train data of dependent variables
+           int - number of folds, default 5
+           int - number of jobs (cores/threads) to use, default -1 (all)
+    OUTPUT: accuracy, precision, and recall validation scores
     '''
 
-    # Getting tpr and fpr to plot ROC curve from sk_learn
-    fpr, tpr, thresholds = roc_curve(labels, probabilities[:, 1])
-
-    # Plotting ROC curve
-    plt.plot(fpr, tpr)
-    plt.xlabel("False Positive Rate (1 - Specificity)")
-    plt.ylabel("True Positive Rate (Sensitivity, Recall)")
-    plt.title("Rideshare Gradient Boost ROC plot")
-    plt.plot(np.linspace(0, 1, 100), np.linspace(0, 1, 100), 'k-', zorder=0)
-    plt.show()
-
-
-def plot_feature_importance(model, X):
-    '''
-    INPUT: fitted model object, pandas df of indicator variables
-    OUTPUT: Graph of feature importances for model
-    '''
-    importances = model.feature_importances_
-    std = np.std([model.feature_importances_ for tree in model.estimators_],
-                 axis=0)
-    indices = np.argsort(importances)[::-1]
-
-    # Print the feature ranking
-    print("Feature ranking:")
-
-    for f in range(X.shape[1]):
-        print("%d. feature %d (%f)" %
-              (f + 1, indices[f], importances[indices[f]]))
-
-    # Plot the feature importances of the forest
-    plt.figure()
-    plt.title("Feature importances")
-    plt.bar(range(X.shape[1]), importances[indices],
-            color="r", yerr=std[indices], align="center")
-    plt.xticks(range(X.shape[1]), list(X), rotation='vertical')
-    plt.xlim([-1, X.shape[1]])
-    plt.show()
+    accuracy = cross_val_score(
+        model, X, y, cv=folds, n_jobs=n_jobs)
+    precision = cross_val_score(
+        model, X, y, cv=folds, n_jobs=n_jobs, scoring='precision')
+    recall = cross_val_score(
+        model, X, y, cv=folds, n_jobs=n_jobs, scoring='recall')
+    print 'accuracy_scores : {}'.format(sum(accuracy) / len(accuracy))
+    print 'precision_scores : {}'.format(sum(precision) / len(precision))
+    print 'recall_scores : {}'.format(sum(recall) / len(recall))
 
 
 def grid_search(model):
@@ -133,8 +103,7 @@ if __name__ == '__main__':
     test_filepath = '/Users/ChrisV/Documents/Galvanize/churn-prediction-case-study/data/churn_test.csv'
     train_df = de.import_data(train_filepath)
     test_df = de.import_data(test_filepath)
-    X_train, y_train = feature_engineer(train_df)
-    X_test, y_test = feature_engineer(test_df)
+    X_train, y_train = de.feature_engineer(train_df)
+    X_test, y_test = de.feature_engineer(test_df)
     model, probabilities = gradient_boosting(X_train, y_train, X_test)
-    plot_ROC(probabilities, y_test.values)
-    #plot_feature_importance(model, X)
+    cross_val(model, X_train, y_train)
