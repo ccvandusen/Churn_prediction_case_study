@@ -4,7 +4,7 @@ from sklearn.model_selection import GridSearchCV, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, \
     GradientBoostingClassifier, AdaBoostClassifier
-from sklearn.metrics import roc_curve, precision_recall_fscore_support,\
+from sklearn.metrics import precision_recall_fscore_support,\
     precision_score, recall_score
 import data_engineer as de
 
@@ -72,10 +72,13 @@ def cross_val(model, X, y, folds=5, n_jobs=-1):
 
     accuracy = cross_val_score(
         model, X, y, cv=folds, n_jobs=n_jobs)
+
     precision = cross_val_score(
         model, X, y, cv=folds, n_jobs=n_jobs, scoring='precision')
+
     recall = cross_val_score(
         model, X, y, cv=folds, n_jobs=n_jobs, scoring='recall')
+
     print 'accuracy_scores : {}'.format(sum(accuracy) / len(accuracy))
     print 'precision_scores : {}'.format(sum(precision) / len(precision))
     print 'recall_scores : {}'.format(sum(recall) / len(recall))
